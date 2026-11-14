@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CCAP Practice Exam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,6 +112,81 @@
     .jump .pill,.nav .spacer{display:none}
     .nav .inner{gap:6px;flex-wrap:wrap}
   }
+
+  /* ====================================================================
+     MOBILE — tối ưu cho điện thoại (Redmi Note 10 Pro ~393px CSS width)
+     ==================================================================== */
+  @media (max-width:560px){
+    :root{ --fs:17px; --radius:11px; }
+
+    /* ---------- HEADER: gọn, một hàng, cuộn ngang mượt ---------- */
+    .bar{
+      flex-wrap:nowrap; gap:6px; padding:9px 10px;
+      padding-left:max(10px, env(safe-area-inset-left));
+      padding-right:max(10px, env(safe-area-inset-right));
+      overflow-x:auto; overflow-y:hidden;
+      -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    }
+    .bar::-webkit-scrollbar{display:none}
+    .bar h1{font-size:1em; flex:none}
+    .bar h1 .h1full{display:none}   /* rút gọn "CCAP Practice" -> "CCAP" */
+    .stats{gap:5px; margin-left:4px}
+    .pill{font-size:.66em; padding:4px 9px}
+    #counter{display:none}          /* đã có pagepos ở thanh dưới */
+    button{font-size:.78em; padding:8px 11px}
+    .toolbtn{padding:8px 10px; flex:none}
+    /* nút dịch chỉ còn icon để tiết kiệm chỗ */
+    #btnTranslate{overflow:hidden}
+    #btnTranslate .tlabel{display:none}
+    /* nút "Câu sai (n)" giữ số, bỏ chữ dài */
+    #btnReview{flex:none}
+
+    /* ---------- LAYOUT ---------- */
+    .layout{padding:12px 11px 120px}
+    .card{padding:15px 14px; margin-bottom:14px}
+    .qtext{font-size:1.04em; margin-bottom:15px}
+    .qmeta{font-size:.74em; gap:6px; margin-bottom:9px}
+
+    /* ---------- lựa chọn: touch target lớn, dễ bấm ---------- */
+    .choice{
+      padding:14px 14px; margin-bottom:11px; gap:11px;
+      min-height:52px; align-items:center;
+    }
+    .choice input{width:20px; height:20px; margin-top:0; flex:none}
+    .choice .ltr{min-width:18px}
+    .row{padding:12px 0; gap:10px}
+    .row .rtext{min-width:0; flex:1 1 100%}
+    .row select{width:100%; padding:11px 12px; min-height:46px}
+
+    /* ---------- sidebar: nút số to hơn cho ngón tay ---------- */
+    .sidebar{width:min(84vw,300px); padding:16px}
+    .qgrid{grid-template-columns:repeat(5,1fr); gap:8px; max-height:none}
+    .qgrid button{height:44px; font-size:.95em}
+
+    /* ---------- NAV dưới: an toàn gesture bar, nút lớn ---------- */
+    .nav{
+      padding:9px 10px;
+      padding-bottom:max(9px, env(safe-area-inset-bottom));
+    }
+    .nav .inner{display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center}
+    .nav .inner .jump{display:none}          /* nhảy câu đã có trong sidebar */
+    .nav button{min-height:48px; padding:0 12px; width:100%}
+    #btnPrev{grid-column:1}
+    .pagepos{grid-column:2; min-width:64px; font-size:.95em}
+    #btnNext{grid-column:3}
+    #btnCheck{grid-column:1 / -1; font-size:1.02em}  /* Check full-width, dễ bấm 1 tay */
+
+    .progress{height:3px}
+    .exp-block{padding:11px; font-size:.9em}
+  }
+
+  /* màn rất hẹp (<=360px) */
+  @media (max-width:360px){
+    :root{ --fs:16px; }
+    .layout{padding:10px 9px 118px}
+    .card{padding:13px 12px}
+    .qgrid{grid-template-columns:repeat(4,1fr)}
+  }
   .vn-loading{color:var(--muted);font-size:13px;font-style:italic;margin-top:6px}
   .progress{height:4px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:8px;max-width:900px;margin-left:auto;margin-right:auto}
   .progress>div{height:100%;background:var(--accent2);width:0;transition:.3s}
@@ -126,7 +201,7 @@
 <header>
   <div class="bar">
     <button class="sidebar-toggle toolbtn" id="btnSidebar" title="Danh sách câu">☰</button>
-    <h1>CCAP Practice</h1>
+    <h1>CCAP<span class="h1full"> Practice</span></h1>
     <div class="stats">
       <span class="pill" id="counter">–</span>
       <span class="pill" id="score">Điểm <b>0/0</b></span>
@@ -135,7 +210,7 @@
     <button class="toolbtn" id="btnFontDown" title="Giảm cỡ chữ">A−</button>
     <button class="toolbtn" id="btnFont" title="Tăng cỡ chữ">A+</button>
     <button class="toolbtn" id="btnTheme" title="Light / Dark">🌙</button>
-    <button id="btnTranslate">🌐 Tiếng Việt</button>
+    <button id="btnTranslate">🌐<span class="tlabel"> Tiếng Việt</span></button>
   </div>
   <div class="progress"><div id="progbar"></div></div>
 </header>
@@ -485,8 +560,11 @@ document.getElementById('btnSidebar').addEventListener('click',()=>{ sidebar.cla
 // Translate
 document.getElementById('btnTranslate').addEventListener('click',(e)=>{
   vnOn.global=!vnOn.global;
-  e.target.textContent = vnOn.global ? '🌐 English' : '🌐 Tiếng Việt';
-  e.target.classList.toggle('primary', vnOn.global);
+  const btn=e.currentTarget;
+  const label=btn.querySelector('.tlabel');
+  if(label) label.textContent = vnOn.global ? ' English' : ' Tiếng Việt';
+  else btn.textContent = vnOn.global ? '🌐 English' : '🌐 Tiếng Việt';
+  btn.classList.toggle('primary', vnOn.global);
   applyTranslation();
 });
 
