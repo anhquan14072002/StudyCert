@@ -77,14 +77,19 @@
   .choice.sel{background:var(--pick);border-color:var(--accent)}
   .choice.correct{background:var(--okbg);border-color:var(--okbd)}
   .choice.wrong{background:var(--badbg);border-color:var(--badbd)}
-  .choice .ltr{font-weight:700;min-width:22px;font-family:var(--mono)}
+  .choice .ltr{font-weight:700;min-width:22px;font-family:var(--mono);color:var(--muted);transition:color .12s}
+  .choice.sel .ltr{color:var(--accent)}
+  .choice.correct .ltr{color:var(--ok)}
+  .choice.wrong .ltr{color:var(--bad)}
   .choice .ctext{flex:1}
-  .choice input{margin-top:3px}
+  /* bỏ icon radio/checkbox — trạng thái đã thể hiện qua viền màu + chữ cái */
+  .choice input{display:none}
   .row{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
   .row .rtext{flex:1;min-width:220px}
   .row select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit}
   .row select.correct{border-color:var(--okbd);background:var(--okbg)}
   .row select.wrong{border-color:var(--badbd);background:var(--badbg)}
+  .row .rowans{font-size:.82em;font-weight:600;color:var(--ok);background:var(--okbg);border:1px solid var(--okbd);border-radius:6px;padding:3px 9px;white-space:nowrap}
   .answerstate{font-size:.82em;padding:3px 8px;border-radius:6px}
   img.qimg{max-width:100%;border-radius:8px;border:1px solid var(--border);margin:6px 0 14px;background:#fff}
   .explain{margin-top:16px;border-top:1px dashed var(--border);padding-top:14px;display:none}
@@ -152,7 +157,6 @@
       padding:14px 14px; margin-bottom:11px; gap:11px;
       min-height:52px; align-items:center;
     }
-    .choice input{width:20px; height:20px; margin-top:0; flex:none}
     .choice .ltr{min-width:18px}
     .row{padding:12px 0; gap:10px}
     .row .rtext{min-width:0; flex:1 1 100%}
@@ -210,6 +214,7 @@
     <button class="toolbtn" id="btnFontDown" title="Giảm cỡ chữ">A−</button>
     <button class="toolbtn" id="btnFont" title="Tăng cỡ chữ">A+</button>
     <button class="toolbtn" id="btnTheme" title="Light / Dark">🌙</button>
+    <button class="toolbtn" id="btnClear" title="Xóa tiến trình đã lưu (làm mới)">🗑️</button>
     <button id="btnTranslate">🌐<span class="tlabel"> Tiếng Việt</span></button>
   </div>
   <div class="progress"><div id="progbar"></div></div>
@@ -257,6 +262,50 @@ let expOpen = false;     // explanation shown/hidden preference (session-wide)
 const vnOn = {global:false}; // translation toggle state (global)
 const vnCache = {};      // text -> vietnamese
 
+// --- persistence (localStorage) ---------------------------------------
+const STORE_KEY = 'ccap-progress-v1';
+let saveTimer = null;
+function saveProgress(){
+  // gộp nhiều lần gọi liên tiếp thành một lần ghi
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    try{
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        state, checked, wrong:[...wrong]
+      }));
+    }catch(e){ /* storage đầy hoặc bị chặn — bỏ qua */ }
+  }, 150);
+}
+function loadProgress(){
+  let raw; try{ raw = localStorage.getItem(STORE_KEY); }catch(e){ return; }
+  if(!raw) return;
+  let data; try{ data = JSON.parse(raw); }catch(e){ return; }
+  if(!data || typeof data!=='object') return;
+  // chỉ nạp lại dữ liệu cho các id còn tồn tại trong bộ câu hỏi hiện tại
+  const validIds = new Set(DATA.map(q=>q.id));
+  if(data.state && typeof data.state==='object'){
+    for(const id in data.state){ if(validIds.has(isNaN(+id)?id:+id) || validIds.has(id)) state[id]=data.state[id]; }
+  }
+  if(data.checked && typeof data.checked==='object'){
+    for(const id in data.checked){ if(validIds.has(isNaN(+id)?id:+id) || validIds.has(id)) checked[id]=data.checked[id]; }
+  }
+  if(Array.isArray(data.wrong)){
+    data.wrong.forEach(id=>{ if(validIds.has(id)) wrong.add(id); });
+  }
+}
+function clearProgress(){
+  try{ localStorage.removeItem(STORE_KEY); }catch(e){}
+  // reset trạng thái trong bộ nhớ
+  for(const k in state) delete state[k];
+  for(const k in checked) delete checked[k];
+  wrong.clear();
+  // thoát chế độ ôn câu sai nếu đang bật
+  reviewMode=false; order=DATA.map((_,i)=>i); idx=0;
+  btnReview.classList.remove('primary');
+  updateReviewBtn();
+  sync();
+}
+
 function curQ(){ return DATA[order[idx]]; }
 function wrongIndices(){ return DATA.map((q,i)=>wrong.has(q.id)?i:-1).filter(i=>i>=0); }
 function updateReviewBtn(){
@@ -278,17 +327,27 @@ function parseCategories(text){
   let cats = [];
   const re = /[‘’'"“”]([^‘’'"“”]{2,60}?)[‘’'"“”]/g;
   let m;
-  while((m = re.exec(t))){ const v=m[1].trim(); if(v && !cats.includes(v)) cats.push(v); }
+  while((m = re.exec(t))){
+    // bỏ dấu câu/khoảng trắng thừa ở đầu–cuối (vd "Long Structured Documents," -> "Long Structured Documents")
+    const v = m[1].replace(/^[\s.,;:]+|[\s.,;:]+$/g,'').trim();
+    if(v && !cats.includes(v)) cats.push(v);
+  }
   return cats;
 }
 
 function normalizeCat(v){ return (v||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
-// is the chosen row value equal to the suggested (tolerant of abbreviations)
+// is the chosen row value equal to the suggested (tolerant of abbreviations/punctuation)
 function catEqual(a,b){
   const na=normalizeCat(a), nb=normalizeCat(b);
+  // chuỗi rỗng (chưa chọn) không bao giờ khớp với một đáp án có nội dung
+  if(!na || !nb) return na===nb;        // chỉ true khi cả hai cùng rỗng
   if(na===nb) return true;
-  return na.startsWith(nb)||nb.startsWith(na)|| (na.length>4&&nb.length>4&&(na.includes(nb)||nb.includes(na)));
+  // một bên là tiền tố của bên kia (xử lý viết tắt), nhưng phải đủ đặc trưng
+  if((na.startsWith(nb)||nb.startsWith(na)) && Math.min(na.length,nb.length)>=3) return true;
+  // chứa nhau — chỉ khi cả hai đủ dài để tránh khớp nhầm
+  if(na.length>4 && nb.length>4 && (na.includes(nb)||nb.includes(na))) return true;
+  return false;
 }
 
 function suggestedOf(q){
@@ -417,14 +476,14 @@ function render(){
         if(kind==='multi'){
           const i=ua.sel.indexOf(L); if(i>=0)ua.sel.splice(i,1); else ua.sel.push(L);
         } else { ua.sel=[L]; }
-        e.preventDefault(); refreshSel();
+        e.preventDefault(); refreshSel(); saveProgress();
       });
     });
     refreshSel();
   } else if(isRows){
     main.querySelectorAll('.row select').forEach((sel,i)=>{
       const L = sel.closest('.row').dataset.letter;
-      sel.addEventListener('change',()=>{ if(checked[q.id])return; ua.rows[L]=sel.value; });
+      sel.addEventListener('change',()=>{ if(checked[q.id])return; ua.rows[L]=sel.value; saveProgress(); });
       sel.disabled = !!checked[q.id];
     });
   }
@@ -481,8 +540,15 @@ function showResult(){
       const L=row.dataset.letter; const sel=row.querySelector('select');
       sel.disabled=true;
       const right = sug&&sug[L];
-      if(catEqual(sel.value, right||'')) sel.classList.add('correct');
-      else sel.classList.add('wrong');
+      const rowOk = catEqual(sel.value, right||'');
+      sel.classList.add(rowOk?'correct':'wrong');
+      // hàng sai: hiện đáp án đúng ngay cạnh để dễ học
+      if(!rowOk && right){
+        const hint=document.createElement('span');
+        hint.className='rowans';
+        hint.textContent='✓ '+right;
+        sel.insertAdjacentElement('afterend', hint);
+      }
     });
   }
 
@@ -529,7 +595,7 @@ function updateScore(){
 document.getElementById('btnCheck').addEventListener('click',()=>{
   const q=curQ(); if(!q) return;
   if(checked[q.id]){ // uncheck -> allow retry
-    checked[q.id]=false; render();
+    checked[q.id]=false; render(); saveProgress();
     document.getElementById('btnCheck').textContent='Check';
     return;
   }
@@ -538,6 +604,7 @@ document.getElementById('btnCheck').addEventListener('click',()=>{
   if(isCorrect(q)) wrong.delete(q.id); else wrong.add(q.id);
   updateReviewBtn();
   showResult(); updateScore(); renderGrid(); applyTranslation();
+  saveProgress();
   document.getElementById('btnCheck').textContent='Retry';
 });
 document.getElementById('btnPrev').addEventListener('click',()=>{ if(idx>0){idx--;sync();} });
@@ -611,7 +678,16 @@ btnReview.addEventListener('click',()=>{
   sync();
 });
 
+// Clear localStorage: đưa trang về như mới (giữ lại theme & cỡ chữ)
+document.getElementById('btnClear').addEventListener('click',()=>{
+  const done = Object.values(checked).filter(Boolean).length;
+  const msg = done ? `Xóa toàn bộ tiến trình đã làm (${done} câu) và làm lại từ đầu?`
+                   : 'Xóa dữ liệu đã lưu và làm mới trang?';
+  if(confirm(msg)) clearProgress();
+});
+
 // init
+loadProgress();          // khôi phục tiến trình đã lưu trước khi render
 updateReviewBtn();
 render();
 (function(){ const q=curQ(); document.getElementById('btnCheck').textContent=q&&checked[q.id]?'Retry':'Check'; })();
