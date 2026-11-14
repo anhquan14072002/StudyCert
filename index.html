@@ -90,6 +90,14 @@
   .row select.correct{border-color:var(--okbd);background:var(--okbg)}
   .row select.wrong{border-color:var(--badbd);background:var(--badbg)}
   .row .rowans{font-size:.82em;font-weight:600;color:var(--ok);background:var(--okbg);border:1px solid var(--okbd);border-radius:6px;padding:3px 9px;white-space:nowrap}
+  /* câu Yes/No: 2 button chọn */
+  .ynbtns{display:inline-flex;gap:8px;flex:none}
+  .ynbtn{font-size:.9em;font-weight:600;padding:8px 18px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:9px;min-width:62px}
+  .ynbtn:hover:not(:disabled){border-color:var(--accent);transform:translateY(-1px)}
+  .ynbtn.sel{background:var(--pick);border-color:var(--accent);color:var(--accent)}
+  .ynbtn.correct{background:var(--okbg);border-color:var(--okbd);color:var(--ok)}
+  .ynbtn.wrong{background:var(--badbg);border-color:var(--badbd);color:var(--bad)}
+  .ynbtn:disabled{cursor:default;opacity:1}
   .answerstate{font-size:.82em;padding:3px 8px;border-radius:6px}
   img.qimg{max-width:100%;border-radius:8px;border:1px solid var(--border);margin:6px 0 14px;background:#fff}
   .explain{margin-top:16px;border-top:1px dashed var(--border);padding-top:14px;display:none}
@@ -98,6 +106,8 @@
   .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)}
   .ansline{margin-bottom:10px}
   .ansline b{font-family:var(--mono);color:var(--accent)}
+  .master-btn{display:block;width:100%;margin:4px 0 12px;font-size:.86em;font-weight:600;color:var(--ok);background:var(--okbg);border:1px solid var(--okbd);border-radius:10px;padding:11px}
+  .master-btn:hover{background:var(--okbd);color:#fff;border-color:var(--okbd);transform:translateY(-1px)}
   .exp-toggle{font-size:.8em;margin:4px 0 2px}
   .exp-body{display:none}
   .exp-body.open{display:block}
@@ -161,6 +171,8 @@
     .row{padding:12px 0; gap:10px}
     .row .rtext{min-width:0; flex:1 1 100%}
     .row select{width:100%; padding:11px 12px; min-height:46px}
+    .ynbtns{display:flex; width:100%; gap:10px}
+    .ynbtn{flex:1; min-height:46px; font-size:1em; padding:10px}
 
     /* ---------- sidebar: nút số to hơn cho ngón tay ---------- */
     .sidebar{width:min(84vw,300px); padding:16px}
@@ -309,7 +321,8 @@ function clearProgress(){
 function curQ(){ return DATA[order[idx]]; }
 function wrongIndices(){ return DATA.map((q,i)=>wrong.has(q.id)?i:-1).filter(i=>i>=0); }
 function updateReviewBtn(){
-  document.getElementById('btnReview').textContent = `🔁 Câu sai (${wrong.size})`;
+  // trong chế độ ôn câu sai, nút đóng vai trò "quay lại tất cả"
+  document.getElementById('btnReview').textContent = reviewMode ? '↩ Tất cả' : `🔁 Câu sai (${wrong.size})`;
 }
 
 const main = document.getElementById('main');
@@ -454,13 +467,23 @@ function render(){
     (q.rows||[]).forEach(r=>{
       const rowOpts = (r.options&&r.options.length)?r.options:opts;
       const cur = ua.rows[r.letter]||'';
-      html += `<div class="row" data-letter="${r.letter}">
-        <span class="rtext"><b>${r.letter}.</b> <span data-en="${esc(r.text)}">${escHtml(r.text)}</span></span>
-        <select>
-          <option value="">— select —</option>
-          ${rowOpts.map(o=>`<option ${cur===o?'selected':''}>${escHtml(o)}</option>`).join('')}
-        </select>
-      </div>`;
+      if(kind==='yesno'){
+        // câu yes/no: dùng 2 button cho nhanh, dễ bấm trên mobile
+        html += `<div class="row yesno" data-letter="${r.letter}">
+          <span class="rtext"><b>${r.letter}.</b> <span data-en="${esc(r.text)}">${escHtml(r.text)}</span></span>
+          <span class="ynbtns">
+            ${rowOpts.map(o=>`<button type="button" class="ynbtn${cur===o?' sel':''}" data-val="${esc(o)}">${escHtml(o)}</button>`).join('')}
+          </span>
+        </div>`;
+      } else {
+        html += `<div class="row" data-letter="${r.letter}">
+          <span class="rtext"><b>${r.letter}.</b> <span data-en="${esc(r.text)}">${escHtml(r.text)}</span></span>
+          <select>
+            <option value="">— select —</option>
+            ${rowOpts.map(o=>`<option ${cur===o?'selected':''}>${escHtml(o)}</option>`).join('')}
+          </select>
+        </div>`;
+      }
     });
   }
 
@@ -481,10 +504,22 @@ function render(){
     });
     refreshSel();
   } else if(isRows){
+    // dropdown (classification)
     main.querySelectorAll('.row select').forEach((sel,i)=>{
       const L = sel.closest('.row').dataset.letter;
       sel.addEventListener('change',()=>{ if(checked[q.id])return; ua.rows[L]=sel.value; saveProgress(); });
       sel.disabled = !!checked[q.id];
+    });
+    // button Yes/No (yesno)
+    main.querySelectorAll('.row.yesno .ynbtn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        if(checked[q.id]) return;
+        const row=btn.closest('.row'); const L=row.dataset.letter; const val=btn.dataset.val;
+        // bấm lại nút đang chọn => bỏ chọn
+        ua.rows[L] = (ua.rows[L]===val) ? '' : val;
+        row.querySelectorAll('.ynbtn').forEach(b=>b.classList.toggle('sel', b.dataset.val===ua.rows[L]));
+        saveProgress();
+      });
     });
   }
 
@@ -535,6 +570,24 @@ function showResult(){
       else if(ua.sel.includes(L)) el.classList.add('wrong');
       el.classList.remove('sel');
     });
+  } else if(kind==='yesno'){
+    main.querySelectorAll('.row.yesno').forEach(row=>{
+      const L=row.dataset.letter; const right=(sug&&sug[L])||'';
+      const picked=ua.rows[L]||'';
+      const rowOk = catEqual(picked, right);
+      row.querySelectorAll('.ynbtn').forEach(btn=>{
+        btn.disabled=true;
+        btn.classList.remove('sel');
+        if(catEqual(btn.dataset.val, right)) btn.classList.add('correct');   // nút đáp án đúng -> xanh
+        else if(catEqual(btn.dataset.val, picked)) btn.classList.add('wrong'); // nút đã chọn nhưng sai -> đỏ
+      });
+      // chưa chọn gì: nhắc đáp án đúng
+      if(!rowOk && !picked){
+        const hint=document.createElement('span');
+        hint.className='rowans'; hint.textContent='✓ '+right;
+        row.querySelector('.ynbtns').appendChild(hint);
+      }
+    });
   } else {
     main.querySelectorAll('.row').forEach(row=>{
       const L=row.dataset.letter; const sel=row.querySelector('select');
@@ -566,12 +619,19 @@ function showResult(){
 
   let h = `<div class="verdict ${ok?'ok':'bad'}">${ok?'✅ Chính xác':'❌ Chưa đúng'}</div>
     <div class="ansline"><b>Đáp án:</b> ${escHtml(String(ansText))}</div>`;
+  // trong chế độ ôn câu sai: nếu làm lại đúng, cho phép gỡ câu khỏi danh sách ôn
+  if(reviewMode && ok){
+    h += `<button class="master-btn" id="btnMaster">✓ Đã thuộc – gỡ khỏi ôn tập</button>`;
+  }
   if(hasExp){
     const open = expOpen; // session-wide preference
     h += `<button class="exp-toggle" id="btnExp">${open?'🔼 Ẩn giải thích':'🔽 Hiện giải thích'}</button>
           <div class="exp-body ${open?'open':''}" id="expBody">${body}</div>`;
   }
   exp.innerHTML=h;
+
+  const btnMaster=document.getElementById('btnMaster');
+  if(btnMaster){ btnMaster.addEventListener('click',()=>masterCurrent()); }
 
   const btnExp=document.getElementById('btnExp');
   if(btnExp){
@@ -583,6 +643,26 @@ function showResult(){
       if(expOpen) applyTranslation();
     });
   }
+}
+
+// Gỡ câu hiện tại khỏi danh sách ôn câu sai (dùng khi đã làm lại đúng)
+function masterCurrent(){
+  const q=curQ(); if(!q) return;
+  wrong.delete(q.id);            // không còn tính là câu sai
+  if(reviewMode){
+    // bỏ câu khỏi danh sách đang ôn
+    order.splice(idx,1);
+    if(idx>=order.length) idx=Math.max(0,order.length-1);
+    if(!order.length){
+      // hết câu sai: quay về chế độ tất cả
+      reviewMode=false; order=DATA.map((_,i)=>i); idx=0;
+      btnReview.classList.remove('primary'); updateReviewBtn();
+    }
+  } else {
+    updateReviewBtn();           // ngoài review mode: cập nhật số câu sai trên nút
+  }
+  saveProgress();
+  sync();
 }
 
 function updateScore(){
