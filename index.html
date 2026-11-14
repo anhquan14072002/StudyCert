@@ -45,7 +45,10 @@
   main{flex:1;min-width:0}
   /* ---- sidebar question list ---- */
   .sidebar{position:sticky;top:80px;width:214px;flex:none;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;max-height:calc(100vh - 104px)}
+  .sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .sidebar h3{margin:0 0 6px;font-size:.74em;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .sidebar-close{display:none;padding:4px 10px;font-size:1.1em;line-height:1;color:var(--muted);border-radius:8px}
+  .sidebar-close:hover{color:var(--text);border-color:var(--accent)}
   .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.64em;color:var(--muted);margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}
   .legend span{display:inline-flex;align-items:center;gap:4px}
   .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid var(--border)}
@@ -64,6 +67,7 @@
     .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:30;width:270px;max-height:none;border-radius:0;transform:translateX(-100%);transition:transform .2s;box-shadow:0 0 24px rgba(0,0,0,.4)}
     .sidebar.open{transform:none}
     .sidebar-toggle{display:inline-flex}
+    .sidebar-close{display:inline-flex;align-items:center;justify-content:center}
     .qgrid{grid-template-columns:repeat(6,1fr)}
   }
   .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:18px}
@@ -234,7 +238,10 @@
 
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <h3>Danh sách câu</h3>
+    <div class="sidebar-head">
+      <h3>Danh sách câu</h3>
+      <button class="sidebar-close" id="btnSidebarClose" title="Đóng" aria-label="Đóng danh sách câu">✕</button>
+    </div>
     <div class="legend">
       <span><i style="background:var(--okbg);border-color:var(--ok)"></i>Đúng</span>
       <span><i style="background:var(--badbg);border-color:var(--bad)"></i>Sai</span>
@@ -703,6 +710,7 @@ function sync(){
 const sidebar=document.getElementById('sidebar');
 function closeSidebar(){ sidebar.classList.remove('open'); }
 document.getElementById('btnSidebar').addEventListener('click',()=>{ sidebar.classList.toggle('open'); });
+document.getElementById('btnSidebarClose').addEventListener('click',closeSidebar);
 
 // Translate
 document.getElementById('btnTranslate').addEventListener('click',(e)=>{
